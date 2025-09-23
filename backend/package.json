@@ -5,16 +5,27 @@
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=18 <22"
+  },
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^17.2.1",
+    "dotenv": "^17.2.2",
     "express": "^5.1.0",
+    "fs-extra": "^11.3.2",
+    "mammoth": "^1.11.0",
+    "microsoft-cognitiveservices-speech-sdk": "^1.46.0",
     "mongoose": "^8.18.0",
-    "nodemon": "^3.1.10"
+    "multer": "^2.0.2",
+    "node-fetch": "^3.3.2",
+    "nodemon": "^3.1.10",
+    "pdf-parse": "^1.1.1",
+    "uuid": "^13.0.0"
   }
 }
