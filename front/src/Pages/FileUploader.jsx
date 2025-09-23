@@ -2,15 +2,84 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 
-export default function FileUploader({ onConvert }) {
+export default function FileUploader({ onConvert, onProgress }) {
   const [file, setFile] = useState(null);
   const [isDragOver, setIsDragOver] = useState(false);
 
-  const handleUpload = () => {
-    if (!file) return;
-    // Simulate a conversion process
-    onConvert(`✅ Mock conversion of ${file.name} completed. Extracted text: "This is a sample document content that has been processed using OCR technology. The text has been successfully converted and is ready for text-to-speech conversion."`);
-  };
+// replace the existing handleUpload with streaming-aware version with progress
+const handleUpload = async () => {
+  if (!file) return;
+
+  try {
+    const fd = new FormData();
+    fd.append('doc', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload');
+    xhr.responseType = 'blob';
+
+    const startedAt = Date.now();
+
+    // Upload progress
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable) return onProgress && onProgress({ phase: 'upload', percent: 0 });
+      const percent = Math.round((e.loaded / e.total) * 100);
+      onProgress && onProgress({ phase: 'upload', percent });
+    };
+
+    // When headers received -> likely server started processing
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+        onProgress && onProgress({ phase: 'processing', percent: undefined });
+      }
+    };
+
+    // Download progress (response streaming)
+    xhr.onprogress = (e) => {
+      const contentLength = Number(xhr.getResponseHeader('Content-Length') || 0);
+      if (contentLength > 0 && e.lengthComputable) {
+        const percent = Math.min(100, Math.round((e.loaded / contentLength) * 100));
+        const elapsedSec = (Date.now() - startedAt) / 1000;
+        const speed = e.loaded / Math.max(1, elapsedSec); // bytes/sec
+        const remaining = Math.max(0, contentLength - e.loaded);
+        const etaSec = Math.round(remaining / Math.max(1, speed));
+        onProgress && onProgress({ phase: 'download', percent, etaSec });
+      } else {
+        onProgress && onProgress({ phase: 'download', percent: undefined });
+      }
+    };
+
+    xhr.onerror = () => {
+      alert('Upload failed. Network error.');
+    };
+
+    xhr.onload = () => {
+      if (xhr.status < 200 || xhr.status >= 300) {
+        try {
+          const reader = new FileReader();
+          reader.onload = () => alert(reader.result || 'Upload failed');
+          reader.readAsText(xhr.response);
+        } catch (_) {
+          alert('Upload failed');
+        }
+        return;
+      }
+
+      const transcriptHeader = xhr.getResponseHeader('X-Transcript-URI');
+      const text = transcriptHeader ? decodeURIComponent(transcriptHeader) : '';
+      const blob = xhr.response;
+      const audioUrl = URL.createObjectURL(blob);
+      onProgress && onProgress({ phase: 'done', percent: 100 });
+      if (onConvert) onConvert({ text, audioUrl });
+    };
+
+    xhr.send(fd);
+  } catch (err) {
+    console.error('Upload error', err);
+    alert('Upload failed. See console for details.');
+  }
+};
+
 
   const handleDragOver = (e) => {
     e.preventDefault();
