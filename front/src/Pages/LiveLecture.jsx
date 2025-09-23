@@ -1,154 +1,232 @@
-import { useState } from "react";
-import TranscriptDisplay from "./TranscriptDisplay";
+import { useState, useRef, useEffect } from "react";
+import axios from "axios";
+import SyncedTranscriptDisplay from "../components/SyncedTranscriptDisplay";
+import TranscriptDisplay from "../components/TranscriptDisplay";
 import { Button } from "@/components/ui/button";
+import * as SpeechSDK from "microsoft-cognitiveservices-speech-sdk";
+const SPEECH_KEY = import.meta.env.VITE_SPEECH_KEY;
+const SPEECH_REGION = import.meta.env.VITE_SPEECH_REGION;
 
 export default function LiveLecture() {
   const [transcript, setTranscript] = useState("");
   const [running, setRunning] = useState(false);
-  const [wordCount, setWordCount] = useState(0);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadTranscriptData, setUploadTranscriptData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [videoSrc, setVideoSrc] = useState(null);
+  const [activeWordOffset, setActiveWordOffset] = useState(null);
 
-  const toggleLecture = () => {
-    if (!running) {
-      setRunning(true);
-      setWordCount(0);
-      // Mock live caption updates
-      const interval = setInterval(() => {
-        const mockWords = [
-          "Welcome to today's lecture on artificial intelligence and machine learning.",
-          "Today we'll be discussing neural networks and their applications.",
-          "First, let's understand the basic concepts of deep learning.",
-          "Neural networks consist of layers of interconnected nodes.",
-          "Each node processes information and passes it to the next layer.",
-          "The training process involves adjusting weights to minimize errors.",
-          "This is crucial for achieving high accuracy in predictions.",
-          "Let's look at some practical examples and use cases."
-        ];
-        
-        const randomWords = mockWords[Math.floor(Math.random() * mockWords.length)];
-        setTranscript(prev => prev + (prev ? " " : "") + randomWords);
-        setWordCount(prev => prev + randomWords.split(' ').length);
-      }, 3000);
-      window.mockInterval = interval;
-    } else {
+  const videoRef = useRef(null);
+  const recognizerRef = useRef(null);
+
+  // Sync uploaded transcript with video
+  useEffect(() => {
+    const videoElement = videoRef.current;
+    if (!videoElement) return;
+
+    const handleTimeUpdate = () => {
+      const currentTimeTicks = videoElement.currentTime * 10000000;
+
+      if (uploadTranscriptData?.recognizedPhrases) {
+        for (const phrase of uploadTranscriptData.recognizedPhrases) {
+          const words = phrase.nBest?.[0]?.words || [];
+          for (const word of words) {
+            const wordStart = word.offsetInTicks;
+            const wordEnd = word.offsetInTicks + word.durationInTicks;
+            if (currentTimeTicks >= wordStart && currentTimeTicks < wordEnd) {
+              setActiveWordOffset(word.offsetInTicks);
+              return;
+            }
+          }
+        }
+      }
+    };
+
+    videoElement.addEventListener("timeupdate", handleTimeUpdate);
+    return () => {
+      videoElement.removeEventListener("timeupdate", handleTimeUpdate);
+    };
+  }, [uploadTranscriptData]);
+
+  // Handle file upload
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      setVideoSrc(URL.createObjectURL(file));
+      setUploadTranscriptData(null);
+      setError("");
+    }
+  };
+
+  const handleUploadSubmit = async () => {
+    if (!selectedFile) {
+      setError("Please select a file first.");
+      return;
+    }
+    setIsLoading(true);
+    setError("");
+    setUploadTranscriptData(null);
+
+    const formData = new FormData();
+    formData.append("video", selectedFile);
+    try {
+      const response = await axios.post(
+        "http://localhost:3000/api/transcribe",
+        formData,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        }
+      );
+      setUploadTranscriptData(response.data);
+    } catch (err) {
+      console.error(err);
+      setError("An error occurred during transcription.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Start/stop live recording with Azure
+  const toggleLecture = async () => {
+    if (running) {
+      recognizerRef.current?.stopContinuousRecognitionAsync();
+      recognizerRef.current = null;
       setRunning(false);
-      clearInterval(window.mockInterval);
+      return;
+    }
+
+    try {
+      const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(
+        SPEECH_KEY,
+        SPEECH_REGION
+      );
+      speechConfig.speechRecognitionLanguage = "en-US";
+
+      const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+      const recognizer = new SpeechSDK.SpeechRecognizer(
+        speechConfig,
+        audioConfig
+      );
+      recognizerRef.current = recognizer;
+
+      recognizer.recognizing = (_s, e) => {
+        if (e.result.text) {
+          setTranscript((prev) => prev + " " + e.result.text);
+        }
+      };
+
+      recognizer.recognized = (_s, e) => {
+        if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
+          setTranscript((prev) => prev + " " + e.result.text);
+        }
+      };
+
+      recognizer.startContinuousRecognitionAsync();
+      setRunning(true);
+    } catch (err) {
+      console.error("Azure Speech Error:", err);
+      setError("Speech recognition failed. Check your Azure credentials.");
     }
   };
 
   const clearTranscript = () => {
     setTranscript("");
-    setWordCount(0);
+    setUploadTranscriptData(null);
+    setVideoSrc(null);
+    setSelectedFile(null);
+    setError("");
   };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
+    <div className="space-y-8 p-4 md:p-8">
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold text-gray-900">
-          Live Lecture
-        </h1>
+        <h1 className="text-4xl font-bold text-gray-900">Live Lecture</h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          Real-time speech-to-text transcription for live lectures and presentations
+          Real-time speech-to-text transcription for live lectures and
+          presentations
         </p>
       </div>
 
-      {/* Control Panel */}
-      <div className="bg-white rounded-2xl shadow-lg p-8">
+      <div className="bg-white rounded-2xl shadow-lg p-8 space-y-6">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center space-x-4">
-            <div className={`w-4 h-4 rounded-full ${running ? 'bg-red-500 animate-pulse' : 'bg-gray-300'}`}></div>
+            <div
+              className={`w-4 h-4 rounded-full ${
+                running ? "bg-red-500 animate-pulse" : "bg-gray-300"
+              }`}
+            ></div>
             <div>
               <h2 className="text-xl font-semibold text-gray-900">
                 {running ? "Recording Active" : "Recording Stopped"}
               </h2>
-              <p className="text-gray-600">
-                {wordCount > 0 ? `${wordCount} words captured` : "Ready to start transcription"}
-              </p>
+              <p className="text-gray-600">Ready to start live transcription</p>
             </div>
           </div>
-
           <div className="flex gap-4">
-            <Button
-              onClick={clearTranscript}
-              disabled={running || !transcript}
-              className="bg-white text-black px-6 py-3 rounded-xl font-semibold border-2 border-green-700 hover:border-gray-400 hover:text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl"
-            >
-              <div className="flex items-center space-x-2">
-                <span>🗑️</span>
-                <span>Clear</span>
-              </div>
+            <Button onClick={clearTranscript} variant="outline">
+              Clear
             </Button>
-            <Button
-              onClick={toggleLecture}
-              className={`px-8 py-3 rounded-xl font-semibold text-white transition-all duration-200 shadow-lg hover:shadow-xl border ${
-                running 
-                  ? 'bg-red-600 border-red-600 hover:bg-red-700' 
-                  : 'bg-green-600 border-green-600 hover:bg-green-700'
-              }`}
-            >
-              {running ? (
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-white rounded-full animate-pulse"></div>
-                  <span>Stop Recording</span>
-                </div>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <div className="w-4 h-4 bg-white rounded-full"></div>
-                  <span>Start Recording</span>
-                </div>
-              )}
+            <Button onClick={toggleLecture}>
+              {running ? "Stop Recording" : "Start Recording"}
             </Button>
           </div>
+        </div>
+
+        <hr className="my-6 border-t-2 border-gray-100" />
+
+        <div className="space-y-4">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Or Upload a Recorded Lecture
+          </h2>
+
+          {videoSrc && (
+            <div className="my-4 border rounded-lg overflow-hidden bg-black">
+              <video
+                controls
+                src={videoSrc}
+                ref={videoRef}
+                width="100%"
+                className="max-h-[500px]"
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row items-center gap-4">
+            <input
+              type="file"
+              onChange={handleFileChange}
+              accept="video/*"
+              className="flex-grow file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-green-50 file:text-green-700 hover:file:bg-green-100 cursor-pointer"
+            />
+            <Button
+              onClick={handleUploadSubmit}
+              disabled={isLoading || !selectedFile}
+            >
+              {isLoading ? "Transcribing..." : "Get Transcription"}
+            </Button>
+          </div>
+          {error && <p className="text-red-500 text-sm mt-2">{error}</p>}
         </div>
       </div>
 
-      {/* Transcript Display */}
       <div className="bg-white rounded-2xl shadow-lg p-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Live Transcript</h2>
-          <div className="flex items-center space-x-2 text-sm text-gray-500">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span>Live</span>
-          </div>
-        </div>
-        
-        <TranscriptDisplay text={transcript} />
-        
-        {!transcript && (
+        <h2 className="text-2xl font-bold text-gray-900">Transcript</h2>
+        {isLoading && (
           <div className="text-center py-12 text-gray-500">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">🎤</span>
-            </div>
-            <p className="text-lg">Click "Start Recording" to begin live transcription</p>
+            Processing your video...
           </div>
         )}
-      </div>
 
-      {/* Features Info */}
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center mb-4">
-            <span className="text-2xl">⚡</span>
-          </div>
-          <h3 className="font-bold text-gray-900 mb-2">Real-time Processing</h3>
-          <p className="text-gray-600 text-sm">Instant speech-to-text conversion with minimal delay</p>
-        </div>
-        
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center mb-4">
-            <span className="text-2xl">🎯</span>
-          </div>
-          <h3 className="font-bold text-gray-900 mb-2">High Accuracy</h3>
-          <p className="text-gray-600 text-sm">Advanced AI models for precise transcription</p>
-        </div>
-        
-        <div className="bg-white rounded-xl p-6 shadow-lg">
-          <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center mb-4">
-            <span className="text-2xl">📝</span>
-          </div>
-          <h3 className="font-bold text-gray-900 mb-2">Export Options</h3>
-          <p className="text-gray-600 text-sm">Save transcripts in multiple formats</p>
-        </div>
+        {uploadTranscriptData ? (
+          <SyncedTranscriptDisplay
+            transcriptData={uploadTranscriptData}
+            activeWordOffset={activeWordOffset}
+          />
+        ) : (
+          <TranscriptDisplay text={transcript} />
+        )}
       </div>
     </div>
   );
