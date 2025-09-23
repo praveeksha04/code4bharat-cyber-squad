@@ -24,24 +24,7 @@ export default function PersonalizedLearning() {
       estimatedTime: "60 min",
       icon: "🧩"
     },
-    {
-      id: 3,
-      title: "AI Fundamentals Video",
-      description: "Watch lecture on neural network architectures and applications",
-      priority: "low",
-      category: "Learning",
-      estimatedTime: "30 min",
-      icon: "🎥"
-    },
-    {
-      id: 4,
-      title: "Project Documentation",
-      description: "Update README and add code comments to current project",
-      priority: "medium",
-      category: "Development",
-      estimatedTime: "25 min",
-      icon: "📝"
-    }
+
   ];
 
   const toggleComplete = (id) => {
