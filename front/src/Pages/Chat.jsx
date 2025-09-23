@@ -1,55 +1,24 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useParams } from "react-router-dom";
-import axios from "axios";
 
 const Chat = () => {
-  const { id } = useParams(); // Task ID from route
-  const suggestions = [
-    {
-      id: 1,
-      title: "Review Data Structures & Algorithms",
-      description: "Complete yesterday's practice problems on arrays and linked lists",
-      priority: "high",
-      category: "Programming",
-      estimatedTime: "45 min",
-      icon: "💻",
-    },
-    {
-      id: 2,
-      title: "LeetCode Practice Session",
-      description: "Solve 2 new problems focusing on dynamic programming",
-      priority: "medium",
-      category: "Problem Solving",
-      estimatedTime: "60 min",
-      icon: "🧩",
-    },
-    {
-      id: 3,
-      title: "AI Fundamentals Video",
-      description: "Watch lecture on neural network architectures and applications",
-      priority: "low",
-      category: "Learning",
-      estimatedTime: "30 min",
-      icon: "🎥",
-    },
-    {
-      id: 4,
-      title: "Project Documentation",
-      description: "Update README and add code comments to current project",
-      priority: "medium",
-      category: "Development",
-      estimatedTime: "25 min",
-      icon: "📝",
-    },
-  ];
-
   const [messages, setMessages] = useState([
     { from: "bot", text: "Hi! I am your AI learning assistant 🤖" },
+    { from: "bot", text: "Let's begin! What LeetCode array problems would you like to try?" },
   ]);
+
   const [input, setInput] = useState("");
+  const [currentIndex, setCurrentIndex] = useState(0); // track which array problem is next
   const messagesEndRef = useRef(null);
 
-  // Scroll to latest message
+  const arrayProblems = [
+    { name: "Two Sum", link: "https://leetcode.com/problems/two-sum/" },
+    { name: "Maximum Subarray", link: "https://leetcode.com/problems/maximum-subarray/" },
+    { name: "Rotate Array", link: "https://leetcode.com/problems/rotate-array/" },
+    { name: "Best Time to Buy and Sell Stock", link: "https://leetcode.com/problems/best-time-to-buy-and-sell-stock/" },
+    { name: "Contains Duplicate", link: "https://leetcode.com/problems/contains-duplicate/" },
+    { name: "Move Zeroes", link: "https://leetcode.com/problems/move-zeroes/" },
+  ];
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -58,60 +27,54 @@ const Chat = () => {
     scrollToBottom();
   }, [messages]);
 
-  const getTaskById = (taskId) => suggestions.find((s) => s.id === taskId);
-
-  const handleSend = async () => {
+  const handleSend = () => {
     if (!input.trim()) return;
 
-    setMessages((prev) => [...prev, { from: "user", text: input }]);
     const userMessage = input;
+    setMessages((prev) => [...prev, { from: "user", text: userMessage }]);
     setInput("");
 
-    const taskId = parseInt(id, 10);
-    const task = getTaskById(taskId);
+    if (
+      userMessage.toLowerCase().includes("suggest array problems") ||
+      userMessage.toLowerCase().includes("arrays") ||
+      userMessage.toLowerCase().includes("next") ||
+      userMessage.toLowerCase().includes("done")
+    ) {
+      if (currentIndex >= arrayProblems.length) {
+        setMessages((prev) => [
+          ...prev,
+          { from: "bot", text: "🎉 You have completed all the beginner array problems!" },
+        ]);
+        return;
+      }
 
-    if (!task) {
-      setMessages((prev) => [...prev, { from: "bot", text: "Task not found." }]);
+      const problem = arrayProblems[currentIndex];
+      const botReply = {
+        from: "bot",
+        text: (
+          <div>
+            Next array problem:
+            <br />
+            👉{" "}
+            <a href={problem.link} target="_blank" rel="noopener noreferrer" style={{ color: "blue" }}>
+              {problem.name}
+            </a>
+          </div>
+        ),
+      };
+      setMessages((prev) => [...prev, botReply]);
+      setCurrentIndex(currentIndex + 1); // move to next problem
       return;
     }
 
-    try {
-      const prompt = `
-You are an AI assistant. Here is the current task:
-Title: ${task.title}
-Description: ${task.description}
-Category: ${task.category}
-Priority: ${task.priority}
-Estimated Time: ${task.estimatedTime}
-
-Answer the following user question: ${userMessage}
-`;
-
-      const response = await axios.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=AIzaSyCQ1WJkwCn28DvDnVwgIX9ztEcumVk8Euw", // ⚠️ Replace with your Gemini API Key
-        {
-          contents: [
-            {
-              parts: [{ text: prompt }],
-            },
-          ],
-        },
-        {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      const answer = response.data.candidates[0].content.parts[0].text;
-      setMessages((prev) => [...prev, { from: "bot", text: answer }]);
-    } catch (err) {
-      console.error(err);
-      setMessages((prev) => [
-        ...prev,
-        { from: "bot", text: "Error fetching AI response." },
-      ]);
-    }
+    // ---------------------------
+    // AI fallback for other questions
+    // ---------------------------
+    const botReply = {
+      from: "bot",
+      text: "I can help you with arrays. Type 'done' or 'next' to get the next problem 🚀",
+    };
+    setMessages((prev) => [...prev, botReply]);
   };
 
   const handleKeyDown = (e) => {
@@ -119,7 +82,7 @@ Answer the following user question: ${userMessage}
   };
 
   return (
-    <div className="max-w-md mx-auto p-4 border rounded-lg shadow-lg flex flex-col h-[500px]">
+    <div className="max-w-md mx-auto p-4 border rounded-lg shadow-lg flex flex-col h-[700px]">
       <h2 className="text-xl font-bold mb-4">AI Learning Chatbot 🤖</h2>
 
       <div className="flex-1 overflow-y-auto mb-4 space-y-2">
