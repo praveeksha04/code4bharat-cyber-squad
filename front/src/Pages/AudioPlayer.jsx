@@ -1,12 +1,34 @@
 import { Button } from "@/components/ui/button";
-import { useState, useRef } from "react";
+import { useState, useRef ,useEffect } from "react";
 
-export default function AudioPlayer({ src }) {
+export default function AudioPlayer({ src ,autoplay=false}) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
   const audioRef = useRef(null);
+
+  useEffect(() => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+
+    if (!src || !audioRef.current) return;
+
+    // reload the audio element source
+    audioRef.current.load();
+
+    if (autoplay) {
+      // attempt to play; browsers may block autoplay if no user gesture
+      audioRef.current.play()
+        .then(() => setIsPlaying(true))
+        .catch(() => {
+          // autoplay blocked — keep isPlaying false and let user press play
+          setIsPlaying(false);
+        });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, autoplay]);
 
   if (!src) return null;
 
