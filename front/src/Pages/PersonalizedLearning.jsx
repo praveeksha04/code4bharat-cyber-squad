@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function PersonalizedLearning() {
   const [completedItems, setCompletedItems] = useState(new Set());
+   const navigate = useNavigate();
 
   const suggestions = [
     {
@@ -166,16 +168,12 @@ export default function PersonalizedLearning() {
                 
                 <div className="flex-shrink-0 ml-4">
                   <button
-                    onClick={() => toggleComplete(item.id)}
-                    className={`px-6 py-3 rounded-xl font-semibold transition-all duration-200 shadow-lg hover:shadow-xl border ${
-                      completedItems.has(item.id)
-                        ? 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
-                        : 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700'
-                    }`}
+                    onClick={() => navigate(`/learning/${item.id}`)}
+                    className="px-6 py-3 rounded-xl font-semibold bg-blue-600 text-white border-blue-600 hover:bg-blue-700 shadow-lg"
                   >
                     <div className="flex items-center space-x-2">
-                      <span>{completedItems.has(item.id) ? '↩️' : '▶️'}</span>
-                      <span>{completedItems.has(item.id) ? 'Undo' : 'Start'}</span>
+                      <span>▶️</span>
+                      <span>Start</span>
                     </div>
                   </button>
                 </div>

@@ -4,6 +4,7 @@ import Home from "./Pages/Home";
 import UploadNotes from "./Pages/UploadNotes";
 import LiveLecture from "./Pages/LiveLecture";
 import PersonalizedLearning from "./Pages/PersonalizedLearning";
+import Chat from "./Pages/Chat";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
             <Route path="/upload" element={<UploadNotes />} />
             <Route path="/lecture" element={<LiveLecture />} />
             <Route path="/learning" element={<PersonalizedLearning />} />
+            <Route path="/learning/:id" element={<Chat />} />
           </Routes>
         </main>
       </div>
