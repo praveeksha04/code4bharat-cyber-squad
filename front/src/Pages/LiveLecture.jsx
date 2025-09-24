@@ -111,15 +111,22 @@ export default function LiveLecture() {
       );
       recognizerRef.current = recognizer;
 
+      // Show interim captions but don’t store permanently
       recognizer.recognizing = (_s, e) => {
         if (e.result.text) {
-          setTranscript((prev) => prev + " " + e.result.text);
+          setTranscript((prev) => {
+            const lines = prev.split("\n");
+            // last line = interim caption
+            lines[lines.length - 1] = e.result.text + " ...";
+            return lines.join("\n");
+          });
         }
       };
 
+      // Store only final results (no duplicates)
       recognizer.recognized = (_s, e) => {
         if (e.result.reason === SpeechSDK.ResultReason.RecognizedSpeech) {
-          setTranscript((prev) => prev + " " + e.result.text);
+          setTranscript((prev) => prev + "\n" + e.result.text);
         }
       };
 

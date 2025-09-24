@@ -65,8 +65,8 @@ export default function FileUploader({ onConvert, onProgress }) {
             const reader = new FileReader();
             reader.onload = () => alert(reader.result || "Upload failed");
             reader.readAsText(xhr.response);
-          } catch (_) {
-            alert("Upload failed");
+          } catch (e) {
+            alert("Upload failed",e);
           }
           return;
         }
